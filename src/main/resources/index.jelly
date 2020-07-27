@@ -1,0 +1,4 @@
+<?jelly escape-by-default='true'?>
+<div>
+    Publishes jenkins build event details to AWS SNS for reporting
+</div>
