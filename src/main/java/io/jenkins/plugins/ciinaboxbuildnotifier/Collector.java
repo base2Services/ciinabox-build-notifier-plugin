@@ -2,22 +2,20 @@ package io.jenkins.plugins.ciinaboxbuildnotifier;
 
 import io.jenkins.plugins.ciinaboxbuildnotifier.models.BuildModel;
 import io.jenkins.plugins.ciinaboxbuildnotifier.models.SCMModel;
-import io.jenkins.plugins.ciinaboxbuildnotifier.models.ChangelogModel;
 import io.jenkins.plugins.ciinaboxbuildnotifier.SnsProvidor;
 import io.jenkins.plugins.ciinaboxbuildnotifier.SnsPublisher;
 import io.jenkins.plugins.ciinaboxbuildnotifier.CiinaboxBuildNotifierConfiguration;
 
-import jenkins.model.Jenkins;
-
 import hudson.EnvVars;
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.model.TaskListener;
 import hudson.model.Run;
 import hudson.model.Executor;
 import hudson.model.Result;
 import hudson.model.Job;
-import hudson.scm.ChangeLogSet;
 import hudson.scm.SCM;
+import hudson.scm.SCMRevisionState;
 
 import hudson.plugins.git.GitSCM;
 import hudson.plugins.git.util.BuildData;
@@ -26,6 +24,7 @@ import hudson.plugins.git.Branch;
 
 import java.lang.InterruptedException;
 import java.io.IOException;
+import java.io.File;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.ArrayList;
@@ -37,32 +36,29 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import com.amazonaws.services.sns.AmazonSNS;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.regions.Region;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.model.GetCallerIdentityRequest;
+import com.amazonaws.services.securitytoken.model.GetCallerIdentityResult;
 
-public class Runner {
+public class Collector {
 
-    private static final Logger LOGGER = Logger.getLogger(Runner.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(Collector.class.getName());
     private BuildModel buildModel = new BuildModel();
     private final Gson gson = new GsonBuilder().create();
 
-    public void scmCollector(Run<?,?> r, SCM scm, TaskListener listener, ChangeLogSet<?> changelog) {
+    public void scmCheckoutCollector(Run<?,?> build, SCM scm, FilePath workspace, TaskListener listener, File changelogFile, SCMRevisionState pollingBaseline) {
         SCMModel scmModel = new SCMModel();
         buildModel.setEventType("SCM");
-        jobCollector(r);
-
-        List<ChangelogModel> changes = new ArrayList<>();
-        for (ChangeLogSet.Entry entry : changelog) {
-            ChangelogModel clm = new ChangelogModel();
-            clm.setTimeStamp(entry.getTimestamp());
-            clm.setCommit(entry.getCommitId());
-            changes.add(clm);
-        }
-
-        scmModel.setChangelog(changes);
+        jobCollector(build);
+        awsCollector();
 
         if (scm instanceof GitSCM) {
             GitSCM gitSCM = (GitSCM) scm;
             scmModel.setUrl(gitSCM.getKey());
-            BuildData buildData = gitSCM.getBuildData(r);
+            BuildData buildData = gitSCM.getBuildData(build);
             if (buildData != null) {
                 Revision rev = buildData.getLastBuiltRevision();
                 if (rev != null) {
@@ -72,7 +68,7 @@ public class Runner {
         }
 
         try {
-            EnvVars environment = r.getEnvironment(listener);
+            EnvVars environment = build.getEnvironment(listener);
             if (environment != null) {
                 scmModel.setBranch(environment.get("BRANCH_NAME", ""));
             }
@@ -83,9 +79,6 @@ public class Runner {
         }
 
         buildModel.setSCM(scmModel);
-
-        String message = gson.toJson(buildModel);
-        LOGGER.log(Level.INFO, "SCM: " + message);
     }
 
     public void buildCollector(Run r, TaskListener listener) {     
@@ -101,9 +94,10 @@ public class Runner {
             queueTime = executor.getTimeSpentInQueue();
         }
 
-        buildModel.setEventType("COMPLETE");
+        buildModel.setEventType("COMPLETED");
 
         jobCollector(r);
+        awsCollector();
 
         buildModel.setBuildTime(r.getDuration());
         buildModel.setQueueTime(queueTime);
@@ -111,20 +105,31 @@ public class Runner {
     }
 
     public void jobCollector(Run r) {
-        Jenkins jenkins = Jenkins.getInstance();
-        buildModel.setJenkinsUrl(jenkins.getRootUrl());
-
         Job job = r.getParent();
         buildModel.setName(job.getFullName());
         buildModel.setDisplayName(job.getDisplayName());
         buildModel.setJobUrl(job.getUrl());
 
-        byte[] buildIdBytes = r.getExternalizableId().getBytes(StandardCharsets.UTF_8);
-        String buildId = Base64.getEncoder().encodeToString(buildIdBytes);
-        buildModel.setBuildId(buildId);
+        byte[] eventdIdBytes = r.getExternalizableId().getBytes(StandardCharsets.UTF_8);
+        String eventId = Base64.getEncoder().encodeToString(eventdIdBytes);
+        buildModel.setEventId(eventId);
 
         buildModel.setBuildNumber(r.getNumber());
         buildModel.setBuildUrl(r.getUrl());
+    }
+
+    public void awsCollector() {
+        Region region = Regions.getCurrentRegion();
+        if (region != null) {
+            try {
+                AWSSecurityTokenService sts = AWSSecurityTokenServiceClientBuilder.standard().withRegion(region.getName()).build();
+                GetCallerIdentityResult result = sts.getCallerIdentity(new GetCallerIdentityRequest());
+                buildModel.setAwsAccountId(result.getAccount());
+                buildModel.setAwsRegion(region.getName());
+            } catch(com.amazonaws.SdkClientException e) {
+                // do nothing here
+            }
+        }
     }
 
     public void sendEvent() {

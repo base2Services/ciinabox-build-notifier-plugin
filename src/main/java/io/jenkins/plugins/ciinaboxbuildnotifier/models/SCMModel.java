@@ -1,7 +1,5 @@
 package io.jenkins.plugins.ciinaboxbuildnotifier.models;
 
-import io.jenkins.plugins.ciinaboxbuildnotifier.models.ChangelogModel;
-
 import java.util.List;
 
 public class SCMModel {
@@ -9,7 +7,6 @@ public class SCMModel {
     private String commit;
     private String branch;
     private String url;
-    private List<ChangelogModel> changelog;
 
     public String getCommit() {
         return commit;
@@ -34,13 +31,4 @@ public class SCMModel {
     public void setUrl(String url) {
         this.url = url;
     }
-
-    public List<ChangelogModel> getChangelog() {
-        return changelog;
-    }
-
-    public void setChangelog(List<ChangelogModel> changelog) {
-        this.changelog = changelog;
-    }
-
 }

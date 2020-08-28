@@ -22,12 +22,16 @@ public class SnsPublisher {
             LOGGER.log(Level.WARNING, "no sns client setup to send build event");
             return;
         }
-        PublishRequest request = new PublishRequest()
-            .withTopicArn(topicArn)
-            .withSubject("JenkinsBuildEvent")
-            .withMessage(message);
-        
-        client.publish(request);
-        LOGGER.log(Level.INFO, "published build event sns message");
+
+        try {
+            PublishRequest request = new PublishRequest()
+                .withTopicArn(topicArn)
+                .withSubject("JenkinsBuildEvent")
+                .withMessage(message);
+            client.publish(request);
+            LOGGER.log(Level.INFO, "published build event sns message");
+        } catch (com.amazonaws.SdkClientException e) {
+            LOGGER.log(Level.WARNING, "failed to publish build even to sns message: " + e.getMessage());
+        }
     }
 }

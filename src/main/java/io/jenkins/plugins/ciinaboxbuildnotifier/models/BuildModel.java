@@ -4,7 +4,9 @@ import io.jenkins.plugins.ciinaboxbuildnotifier.models.SCMModel;
 
 public class BuildModel {
     
-    private String buildId;
+    private String awsAccountId;
+    private String awsRegion;
+    private String eventId;
     private String eventType;
     private String jenkinsUrl;
     private String name;
@@ -18,12 +20,28 @@ public class BuildModel {
     private String status;
     private SCMModel scm;
 
-    public String getBuildId() {
-        return buildId;
+    public String getAwsAccountId() {
+        return awsAccountId;
     }
 
-    public void setBuildId(String buildId) {
-        this.buildId = buildId;
+    public void setAwsAccountId(String awsAccountId) {
+        this.awsAccountId = awsAccountId;
+    }
+
+    public String getAwsRegion() {
+        return awsRegion;
+    }
+
+    public void setAwsRegion(String awsRegion) {
+        this.awsRegion = awsRegion;
+    }
+
+    public String getEventId() {
+        return eventId;
+    }
+
+    public void setEventId(String eventId) {
+        this.eventId = eventId;
     }
 
     public String getEventType() {

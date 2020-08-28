@@ -1,6 +1,6 @@
 package io.jenkins.plugins.ciinaboxbuildnotifier;
 
-import io.jenkins.plugins.ciinaboxbuildnotifier.Runner;
+import io.jenkins.plugins.ciinaboxbuildnotifier.Collector;
 
 import hudson.Extension;
 import hudson.model.TaskListener;
@@ -10,7 +10,7 @@ import hudson.model.listeners.RunListener;
 @Extension
 public class CiinaboxRunListener extends RunListener<Run> {
 
-    private final Runner runner = new Runner();
+    private final Collector collector = new Collector();
 
     public CiinaboxRunListener() {
         super(Run.class);
@@ -18,8 +18,8 @@ public class CiinaboxRunListener extends RunListener<Run> {
 
     @Override
     public void onCompleted(Run r, TaskListener listener) {
-       runner.buildCollector(r, listener);
-       runner.sendEvent();
+        collector.buildCollector(r, listener);
+        collector.sendEvent();
     }
 
 }
